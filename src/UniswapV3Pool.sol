@@ -1,5 +1,9 @@
 pragma solidity ^0.8.14;
 
+import "../lib/forge-std/src/interfaces/IERC20.sol";
+import "./IUniswapV3MintCallback.sol";
+import "./IUniswapV3Pool.sol";
+
 // src/lib/Tick.sol
 library Tick {
     struct Info {
@@ -44,7 +48,7 @@ library Position {
     }
 }
 
-contract UniswapV3Pool {
+contract UniswapV3Pool is IUniswapV3Pool {
     using Tick for mapping(int24 => Tick.Info);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
@@ -73,14 +77,20 @@ contract UniswapV3Pool {
     // Positions info
     mapping(bytes32 => Position.Info) public positions;
 
+    error InvalidTickRange();
+    error ZeroLiquidity();
+    error InsufficientInputAmount();
+
+    event Mint(address indexed sender, address indexed owner, int24 lowerTick, int24 upperTick, uint128 amount, uint256 amount0, uint256 amount1);
+
     constructor(address token0_, address token1_, uint160 sqrtPriceX96, int24 tick) {
         token0 = token0_;
         token1 = token1_;
 
-        slot0 = Slot0({sqrtPriceX96: sqrtPriceX96, tick: 0});
+        slot0 = Slot0({sqrtPriceX96: sqrtPriceX96, tick: 85176});
     }
 
-    function mint(address owner, int24 lowerTick, int24 upperTick, uint128 amount) external returns(uint256 amount0, uint256 amount1) {
+    function mint(address owner, int24 lowerTick, int24 upperTick, uint128 amount, bytes calldata data) external returns(uint256 amount0, uint256 amount1) {
         if (
             lowerTick >= upperTick ||
             lowerTick < MIN_TICK ||
@@ -104,7 +114,8 @@ contract UniswapV3Pool {
         uint256 balance1Before;
         if (amount0 > 0) balance0Before = balance0();
         if (amount1 > 0) balance1Before = balance1();
-        IUniswapV3MintCallback(msg.sender).uniswapV3MintCallback(amount0, amount1);
+        IUniswapV3MintCallback mintCallback = IUniswapV3MintCallback(msg.sender);
+        mintCallback.uniswapV3MintCallback(amount0, amount1, data);
         if (amount0 > 0 && balance0Before + amount0 > balance0()) revert InsufficientInputAmount();
         if (amount1 > 0 && balance1Before + amount1 > balance1()) revert InsufficientInputAmount();
 
