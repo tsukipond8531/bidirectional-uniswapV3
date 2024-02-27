@@ -1,7 +1,9 @@
 pragma solidity ^0.8.14;
 
+import "../lib/forge-std/src/console2.sol";
 import "../lib/forge-std/src/interfaces/IERC20.sol";
 import "./IUniswapV3MintCallback.sol";
+import "./IUniswapV3SwapCallback.sol";
 import "./IUniswapV3Pool.sol";
 
 // src/lib/Tick.sol
@@ -83,6 +85,16 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
     event Mint(address indexed sender, address indexed owner, int24 lowerTick, int24 upperTick, uint128 amount, uint256 amount0, uint256 amount1);
 
+    event Swap(
+        address indexed sender,
+        address indexed recipient,
+        int256 amount0,
+        int256 amount1,
+        uint160 sqrtPriceX96,
+        uint128 liquidity,
+        int24 tick
+    );
+
     constructor(address token0_, address token1_, uint160 sqrtPriceX96, int24 tick) {
         token0 = token0_;
         token1 = token1_;
@@ -90,7 +102,16 @@ contract UniswapV3Pool is IUniswapV3Pool {
         slot0 = Slot0({sqrtPriceX96: sqrtPriceX96, tick: 85176});
     }
 
-    function mint(address owner, int24 lowerTick, int24 upperTick, uint128 amount, bytes calldata data) external returns(uint256 amount0, uint256 amount1) {
+    function mint(
+        address owner, 
+        int24 lowerTick, 
+        int24 upperTick, 
+        uint128 amount, 
+        bytes calldata data
+    ) external returns(
+        uint256 amount0, 
+        uint256 amount1
+    ) {
         if (
             lowerTick >= upperTick ||
             lowerTick < MIN_TICK ||
@@ -120,6 +141,43 @@ contract UniswapV3Pool is IUniswapV3Pool {
         if (amount1 > 0 && balance1Before + amount1 > balance1()) revert InsufficientInputAmount();
 
         emit Mint(msg.sender, owner, lowerTick, upperTick, amount, amount0, amount1);
+
+    }
+
+    function swap(address recipient, bytes calldata data) 
+        public
+        returns (int256 amount0, int256 amount1)
+    {
+
+        int24 nextTick = 85184;
+        uint160 nextPrice = 5604469350942327889444743441197;
+
+        amount0 = -0.008396714242162444 ether;
+        amount1 = 42 ether;
+
+        (slot0.tick, slot0.sqrtPriceX96) = (nextTick, nextPrice);
+
+        console2.log("Pool.sol:swap::transferring ERC20");
+
+        // Notice the -ve sign on amount0 below. This is to ensure that the -ve value is converted correctly!
+        IERC20(token0).transfer(recipient, uint256(-amount0));
+
+        // Caller is expected to transfer the token amount that they are spending
+        uint balance1Before = balance1();
+        IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, data);
+        if (balance1Before + uint256(amount1) > balance1()) revert InsufficientInputAmount();
+
+
+        emit Swap(
+            msg.sender,
+            recipient,
+            amount0,
+            amount1,
+            slot0.sqrtPriceX96,
+            liquidity,
+            slot0.tick
+);
+
 
     }
 
