@@ -5,26 +5,8 @@ import "../lib/forge-std/src/interfaces/IERC20.sol";
 import "./IUniswapV3MintCallback.sol";
 import "./IUniswapV3SwapCallback.sol";
 import "./IUniswapV3Pool.sol";
-
-// src/lib/Tick.sol
-library Tick {
-    struct Info {
-        bool initialized;
-        uint128 liquidity;
-    }
-
-    function update(mapping(int24 => Tick.Info) storage self, int24 tick, uint128 liquidityDelta) internal {
-        Tick.Info storage tickInfo = self[tick];
-        uint128 liquidityBefore = tickInfo.liquidity;
-        uint128 liquidityAfter = liquidityBefore + liquidityDelta;
-
-        if (liquidityBefore == 0) {
-            tickInfo.initialized = true;
-        }
-
-        tickInfo.liquidity = liquidityAfter;
-    }
-}
+import "./TickBitmap.sol";
+import "./Tick.sol";
 
 // src/lib/Position.sol
 library Position {
@@ -52,6 +34,7 @@ library Position {
 
 contract UniswapV3Pool is IUniswapV3Pool {
     using Tick for mapping(int24 => Tick.Info);
+    using TickBitmap for mapping(int16 => uint256);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
 
@@ -76,6 +59,7 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
     // Ticks info
     mapping(int24 => Tick.Info) public ticks;
+    mapping(int16 => uint256) public tickBitmap;
     // Positions info
     mapping(bytes32 => Position.Info) public positions;
 
@@ -120,8 +104,11 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
         if (amount == 0) revert ZeroLiquidity();
 
-        ticks.update(lowerTick, amount);
-        ticks.update(upperTick, amount);
+        bool flippedLower = ticks.update(lowerTick, amount);
+        bool flippedUpper = ticks.update(upperTick, amount);
+
+        if (flippedLower) tickBitmap.flipTick(lowerTick, 1);
+        if (flippedUpper) tickBitmap.flipTick(upperTick, 1);
 
         Position.Info storage position = positions.get(owner, lowerTick, upperTick);
         position.update(amount);
