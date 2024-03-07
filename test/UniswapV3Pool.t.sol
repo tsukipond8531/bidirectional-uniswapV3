@@ -34,7 +34,12 @@ contract UniswapV3PoolTest is Test {
         token1 = new ERC20Mintable("USDC", "USDC", 18);
     }
 
-    function setupTestCase(TestCaseParams memory params) internal returns (uint poolBalance0, uint poolBalance1) {
+    function setupTestCase(
+        TestCaseParams memory params
+    ) internal returns (
+        uint poolBalance0, 
+        uint poolBalance1
+    ) {
         token0.mint(address(this), params.wethBalance);
         token1.mint(address(this), params.usdcBalance);
 
@@ -76,6 +81,7 @@ contract UniswapV3PoolTest is Test {
             );
 
             if (amount0 > 0) {
+                console2.log("hit token0 transferFrom");
                 IERC20(extra.token0).transferFrom(
                     extra.payer,
                     msg.sender,
@@ -84,12 +90,19 @@ contract UniswapV3PoolTest is Test {
             }
 
             if (amount1 > 0) {
+                console2.log("hit token1 transferFrom");
+                // log balance of extra.payer
+                console2.log("extra.payer balance", IERC20(extra.token1).balanceOf(extra.payer));
+                // log if exra.payer balance is greater than amount1
+                console2.log("extra.payer balance > amount1", IERC20(extra.token1).balanceOf(extra.payer) > uint256(amount1));
+                
                 IERC20(extra.token1).transferFrom(
                     extra.payer,
                     msg.sender,
                     uint256(amount1)
                 );
             }
+            console2.log("finished callback");
         }
     }
 
@@ -108,7 +121,7 @@ contract UniswapV3PoolTest is Test {
     function testMintSuccess() public {
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
+            usdcBalance: 5000.2091909204895241 ether,
             currentTick: 85176,
             lowerTick: 84222,
             upperTick: 86129,
@@ -121,8 +134,8 @@ contract UniswapV3PoolTest is Test {
 
         (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
 
-        uint256 expectedAmount0 = 0.998976618347425280 ether;
-        uint256 expectedAmount1 = 5000 ether;
+        uint256 expectedAmount0 = 0.998628802115141959 ether;
+        uint256 expectedAmount1 = 5000.2091909204895241 ether;
         assertEq(
             poolBalance0,
             expectedAmount0,
@@ -172,7 +185,7 @@ contract UniswapV3PoolTest is Test {
     function testSwapBuyEth() public {
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
+            usdcBalance: 5000.2091909204895241 ether,
             currentTick: 85176,
             lowerTick: 84222,
             upperTick: 86129,
@@ -248,5 +261,4 @@ contract UniswapV3PoolTest is Test {
         assertEq(pool.liquidity(), 1517882343751509868544, "incorrect liquidity minted");
 
     }
-
 }

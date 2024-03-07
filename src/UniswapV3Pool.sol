@@ -7,6 +7,9 @@ import "./IUniswapV3SwapCallback.sol";
 import "./IUniswapV3Pool.sol";
 import "./TickBitmap.sol";
 import "./Tick.sol";
+import "./FixedPoint96.sol";
+import "./Math.sol";
+import "./TickMath.sol";
 
 // src/lib/Position.sol
 library Position {
@@ -37,9 +40,6 @@ contract UniswapV3Pool is IUniswapV3Pool {
     using TickBitmap for mapping(int16 => uint256);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
-
-    int24 internal constant MIN_TICK = -88272;
-    int24 internal constant MAX_TICK = -MIN_TICK;
 
     // Pool tokens, immutable
     address public immutable token0;
@@ -98,8 +98,8 @@ contract UniswapV3Pool is IUniswapV3Pool {
     ) {
         if (
             lowerTick >= upperTick ||
-            lowerTick < MIN_TICK ||
-            lowerTick > MAX_TICK
+            lowerTick < TickMath.MIN_TICK ||
+            lowerTick > TickMath.MAX_TICK
         ) revert InvalidTickRange();
 
         if (amount == 0) revert ZeroLiquidity();
@@ -113,8 +113,18 @@ contract UniswapV3Pool is IUniswapV3Pool {
         Position.Info storage position = positions.get(owner, lowerTick, upperTick);
         position.update(amount);
 
-        amount0 = 0.998976618347425280 ether;
-        amount1 = 5000 ether;
+        Slot0 memory slot0_ = slot0;
+
+        amount0 = Math.calcAmount0Delta(
+            slot0_.sqrtPriceX96, 
+            TickMath.getSqrtRatioAtTick(upperTick), 
+            amount
+        );
+        amount1 = Math.calcAmount1Delta(
+            slot0_.sqrtPriceX96, 
+            TickMath.getSqrtRatioAtTick(lowerTick), 
+            amount
+        );
 
         liquidity += uint128(amount);
 
