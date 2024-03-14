@@ -24,13 +24,11 @@ library Position {
         self.liquidity = liquidityAfter;
     }
 
-    function get(
-        mapping(bytes32 => Info) storage self, 
-        address owner, 
-        int24 lowerTick, 
-        int24 upperTick
-        ) internal view returns (Position.Info storage position) {
-
+    function get(mapping(bytes32 => Info) storage self, address owner, int24 lowerTick, int24 upperTick)
+        internal
+        view
+        returns (Position.Info storage position)
+    {
         position = self[keccak256(abi.encodePacked(owner, lowerTick, upperTick))];
     }
 }
@@ -52,6 +50,7 @@ contract UniswapV3Pool is IUniswapV3Pool {
         // Current tick
         int24 tick;
     }
+
     Slot0 public slot0;
 
     // Amount of liquidity, L
@@ -67,7 +66,15 @@ contract UniswapV3Pool is IUniswapV3Pool {
     error ZeroLiquidity();
     error InsufficientInputAmount();
 
-    event Mint(address indexed sender, address indexed owner, int24 lowerTick, int24 upperTick, uint128 amount, uint256 amount0, uint256 amount1);
+    event Mint(
+        address indexed sender,
+        address indexed owner,
+        int24 lowerTick,
+        int24 upperTick,
+        uint128 amount,
+        uint256 amount0,
+        uint256 amount1
+    );
 
     event Swap(
         address indexed sender,
@@ -86,21 +93,13 @@ contract UniswapV3Pool is IUniswapV3Pool {
         slot0 = Slot0({sqrtPriceX96: sqrtPriceX96, tick: 85176});
     }
 
-    function mint(
-        address owner, 
-        int24 lowerTick, 
-        int24 upperTick, 
-        uint128 amount, 
-        bytes calldata data
-    ) external returns(
-        uint256 amount0, 
-        uint256 amount1
-    ) {
-        if (
-            lowerTick >= upperTick ||
-            lowerTick < TickMath.MIN_TICK ||
-            lowerTick > TickMath.MAX_TICK
-        ) revert InvalidTickRange();
+    function mint(address owner, int24 lowerTick, int24 upperTick, uint128 amount, bytes calldata data)
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
+        if (lowerTick >= upperTick || lowerTick < TickMath.MIN_TICK || lowerTick > TickMath.MAX_TICK) {
+            revert InvalidTickRange();
+        }
 
         if (amount == 0) revert ZeroLiquidity();
 
@@ -115,16 +114,8 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
         Slot0 memory slot0_ = slot0;
 
-        amount0 = Math.calcAmount0Delta(
-            slot0_.sqrtPriceX96, 
-            TickMath.getSqrtRatioAtTick(upperTick), 
-            amount
-        );
-        amount1 = Math.calcAmount1Delta(
-            slot0_.sqrtPriceX96, 
-            TickMath.getSqrtRatioAtTick(lowerTick), 
-            amount
-        );
+        amount0 = Math.calcAmount0Delta(slot0_.sqrtPriceX96, TickMath.getSqrtRatioAtTick(upperTick), amount);
+        amount1 = Math.calcAmount1Delta(slot0_.sqrtPriceX96, TickMath.getSqrtRatioAtTick(lowerTick), amount);
 
         liquidity += uint128(amount);
 
@@ -138,14 +129,12 @@ contract UniswapV3Pool is IUniswapV3Pool {
         if (amount1 > 0 && balance1Before + amount1 > balance1()) revert InsufficientInputAmount();
 
         emit Mint(msg.sender, owner, lowerTick, upperTick, amount, amount0, amount1);
-
     }
 
-    function swap(address recipient, bytes calldata data) 
+    function swap(address recipient, bool zeroForOne, uint256 amountSpecified, bytes calldata data)
         public
         returns (int256 amount0, int256 amount1)
     {
-
         int24 nextTick = 85184;
         uint160 nextPrice = 5604469350942327889444743441197;
 
@@ -160,22 +149,11 @@ contract UniswapV3Pool is IUniswapV3Pool {
         IERC20(token0).transfer(recipient, uint256(-amount0));
 
         // Caller is expected to transfer the token amount that they are spending
-        uint balance1Before = balance1();
+        uint256 balance1Before = balance1();
         IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, data);
         if (balance1Before + uint256(amount1) > balance1()) revert InsufficientInputAmount();
 
-
-        emit Swap(
-            msg.sender,
-            recipient,
-            amount0,
-            amount1,
-            slot0.sqrtPriceX96,
-            liquidity,
-            slot0.tick
-);
-
-
+        emit Swap(msg.sender, recipient, amount0, amount1, slot0.sqrtPriceX96, liquidity, slot0.tick);
     }
 
     function balance0() internal returns (uint256 balance) {
