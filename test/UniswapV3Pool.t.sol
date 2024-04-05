@@ -211,7 +211,9 @@ contract UniswapV3PoolTest is Test {
 
         console2.log("Pool.t::calling swap");
 
-        (int amount0Delta, int256 amount1Delta) = pool.swap(address(this), "");
+        // Swap 42 USDC for ETH
+        vm.pauseGasMetering(); 
+        (int256 amount0Delta, int256 amount1Delta) = pool.swap(address(this), false, 42 ether, "");
 
         // Check token amounts swapped are correct
         assertEq(
