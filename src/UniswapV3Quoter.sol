@@ -1,6 +1,6 @@
 pragma solidity ^0.8.14;
 
-import "./IUniswapV3Pool.sol";
+import "./interfaces/IUniswapV3Pool.sol";
 
 contract UniswapV3Quoter {
     struct QuoteParams {
